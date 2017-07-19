@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-# GSSD
+# G-SDD_For_RS
 dataset
 # python dictionary  from label to int 
 -label_map.py
@@ -17,5 +16,4 @@ app:the remote sensing image object detection system for yanshen cup.
 object_detection:Google tensorflow object detection API
 slim:Google tensorflow image classification API
 =======
-# G-SDD_For_RS
->>>>>>> 2beed2ec6db3f810951913d3cc4c265e42d902bd
+
