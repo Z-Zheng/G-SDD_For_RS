@@ -49,7 +49,11 @@ def cut_image(bound, src_image, channel):
 
 def _rotate_clockwise(angle, src_image_shape, boxes):
     nboxes = []
-    h, w, c = src_image_shape
+    h, w = (0, 0)
+    if len(src_image_shape) == 2:
+        h, w, c = src_image_shape
+    if len(src_image_shape) == 3:
+        h, w, c = src_image_shape
     angle_map = {90: lambda xmin, ymin, xmax, ymax: [h - ymax, xmin, h - ymin, w - xmin],
                  180: lambda xmin, ymin, xmax, ymax: [w - xmax, h - ymax, w - xmin, h - ymin],
                  270: lambda xmin, ymin, xmax, ymax: [ymin, w - xmax, ymax, w - xmin],
@@ -79,7 +83,11 @@ def shift(example, number):
         mymin = min(mymin, ymin)
         mxmax = max(mxmax, xmax)
         mymax = max(mymax, ymax)
-    h, w, c = example.image
+    h, w = (0, 0)
+    if len(example.image.shape) == 2:
+        h, w = example.image.shape
+    if len(example.image.shape) == 3:
+        h, w, c = example.image.shape
     # left top right down
     padding = (mxmin, mymin, w - mxmax, h - mymax)
     assert mxmin > 0 and mymin > 0 and w - mxmax > 0 and h - mymax > 0, \
@@ -124,7 +132,7 @@ def cut(image_filename, label_filename, cut_filename, save_dir):
         new_image = cut_image(bound, src_img, channel)
         example.image = new_image
         # get inside boxes
-        inside_box = search_inside_box(bound, example.boxes)
+        inside_box = search_inside_box(bound, example.bboxes)
         example.bboxes = inside_box
 
         img_filename = "{0}_{1}".format(prefix, id)
