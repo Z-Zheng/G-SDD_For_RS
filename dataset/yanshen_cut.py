@@ -3,7 +3,7 @@ import label_map
 import os
 import random
 import string
-from skimage.io import imsave
+from skimage import transform
 import numpy as np
 
 
@@ -15,7 +15,7 @@ def parse_cut_file(cut_filename):
     for line in all:
         datas = line.split('\t')
         _, xmin, ymin, xmax, ymax = tuple(filter(lambda e: e != '', datas))
-        yield xmin, ymin, xmax, ymax
+        yield int(xmin), int(ymin), int(xmax), int(ymax)
 
 
 def is_inside(bound, box):
@@ -28,21 +28,8 @@ def search_inside_box(bound, boxes):
     return [box for box in boxes if is_inside(bound, box.coord)]
 
 
-def write_boxes_to_file(boxes, save_path):
-    format = '{0} {1} {2} {3} {4} {5} {6} {7} {8}\n'
-    with open(save_path, 'w') as f:
-        for box in boxes:
-            xmin, ymin, xmax, ymax = box.coord
-            category_str = label_map.label_map_str[box.category]
-            record = format.format(xmin, ymin, xmax, ymin, xmax, ymax, xmin, ymax, category_str)
-            f.write(record)
-
-
-def write_image_to_file(image, filename, img_format='.png'):
-    imsave("{0}.{1}".format(filename, img_format), image)
-
-
 def select_channel(shape):
+    channel = None
     # single channel
     if len(shape) == 2:
         channel = 1
@@ -52,17 +39,79 @@ def select_channel(shape):
     return channel
 
 
-def cut_image(bound, src_image, channels):
+def cut_image(bound, src_image, channel):
     xmin, ymin, xmax, ymax = bound
-    if channels == 1:
+    if channel == 1:
         return src_image[ymin:ymax, xmin:xmax]
     else:
         return src_image[ymin:ymax, xmin:xmax, :]
 
 
+def _rotate_clockwise(angle, src_image_shape, boxes):
+    nboxes = []
+    h, w, c = src_image_shape
+    angle_map = {90: lambda xmin, ymin, xmax, ymax: [h - ymax, xmin, h - ymin, w - xmin],
+                 180: lambda xmin, ymin, xmax, ymax: [w - xmax, h - ymax, w - xmin, h - ymin],
+                 270: lambda xmin, ymin, xmax, ymax: [ymin, w - xmax, ymax, w - xmin],
+                 }
+    for box in boxes:
+        xmin, ymin, xmax, ymax = box.coord
+        nbox = yanshen_reader.BBox(angle_map[angle](xmin, ymin, xmax, ymax), box.category, box.blurred)
+        nboxes.append(nbox)
+    return nboxes
+
+
+def rotate_four_dir(example):
+    angles = [90, 180, 270]
+    for angle in angles:
+        nexample = yanshen_reader.Example()
+        nexample.image = transform.rotate(example.image, angle)
+        nexample.bboxes = _rotate_clockwise(angle, example.image.shape, example.bboxes)
+        yield nexample
+
+
+def shift(example, number):
+    # mininum bounding rectangle
+    mxmin, mymin, mxmax, mymax = (1 << 21, 1 << 21, 0, 0)
+    for box in example.bboxes:
+        xmin, ymin, xmax, ymax = box.coord
+        mxmin = min(mxmin, xmin)
+        mymin = min(mymin, ymin)
+        mxmax = max(mxmax, xmax)
+        mymax = max(mymax, ymax)
+    h, w, c = example.image
+    # left top right down
+    padding = (mxmin, mymin, w - mxmax, h - mymax)
+    assert mxmin > 0 and mymin > 0 and w - mxmax > 0 and h - mymax > 0, \
+        "padding must be greater than 0"
+    channel = select_channel(example.image.shape)
+    for i in range(number):
+        nexample = yanshen_reader.Example()
+        flag = np.random.rand()
+        if flag >= 0.5:
+            dleft = np.random.randint(1, padding[0], 1)
+            dtop = np.random.randint(1, padding[1], 1)
+            nexample.image = cut_image((dleft, dtop, w, h), example.image, channel)
+            for box in example.bboxes:
+                xmin, ymin, xmax, ymax = box.coord
+                nbox = yanshen_reader.BBox([xmin + dleft, ymin + dtop, xmax, ymax], box.category, box.blurred)
+                nexample.bboxes.append(nbox)
+            yield nexample
+        else:
+            dright = np.random.randint(1, padding[2], 1)
+            ddown = np.random.randint(1, padding[3], 1)
+            nexample.image = cut_image((0, 0, w - dright, h - ddown), example.image, channel)
+            for box in example.bboxes:
+                xmin, ymin, xmax, ymax = box.coord
+                nbox = yanshen_reader.BBox([xmin, ymin, xmax, ymax], box.category, box.blurred)
+                nexample.bboxes.append(nbox)
+            yield nexample
+
+
 def cut(image_filename, label_filename, cut_filename, save_dir):
     example = yanshen_reader.read(image_filename, label_filename, read_img=True)
-    filename = ''.join(random.choice(string.ascii_letters) for x in range(7))
+    # get random prefix
+    prefix = ''.join(random.choice(string.ascii_letters) for x in range(7))
     bounds = parse_cut_file(cut_filename)
 
     src_img = example.image
@@ -70,12 +119,41 @@ def cut(image_filename, label_filename, cut_filename, save_dir):
     channel = select_channel(src_img.shape)
 
     for id, bound in enumerate(bounds):
+        example = yanshen_reader.Example()
+        # cut image
         new_image = cut_image(bound, src_img, channel)
-        # write image saved by png to disk
-        write_image_to_file(new_image, "{0}_{1}".format(filename, id), '.png')
-        subfilename = "{0}_{1}.txt".format(filename, id)
+        example.image = new_image
+        # get inside boxes
         inside_box = search_inside_box(bound, example.boxes)
-        # write boxes saved by txt to disk
-        write_boxes_to_file(inside_box, os.path.join(save_dir, subfilename))
-        print("[{2}]:{0} has been saved in {1}\n".format(subfilename, save_dir, id))
+        example.bboxes = inside_box
 
+        img_filename = "{0}_{1}".format(prefix, id)
+        subfilename = "{0}_{1}.txt".format(prefix, id)
+        # save
+        example.write_to_file(image_filename=img_filename,
+                              image_format='.png',
+                              boxes_save_path=os.path.join(save_dir, subfilename))
+
+        # log
+        print("[{2}]:{0} has been saved in {1}\n".format(img_filename, save_dir, id))
+        print("[{2}]:{0} has been saved in {1}\n".format(subfilename, save_dir, id))
+        # rotate
+        examples = rotate_four_dir(example)
+        for i, e in enumerate(examples):
+            img_filename = "{0}_{1}r{2}".format(prefix, id, i)
+            subfilename = "{0}_{1}r{2}.txt".format(prefix, id, i)
+            e.write_to_file(image_filename=img_filename,
+                            image_format='.png',
+                            boxes_save_path=os.path.join(save_dir, subfilename))
+            print("[{2}]:{0} has been saved in {1}\n".format(img_filename, save_dir, id))
+            print("[{2}]:{0} has been saved in {1}\n".format(subfilename, save_dir, id))
+        # shift
+        examples = shift(example, number=20)
+        for i, e in enumerate(examples):
+            img_filename = "{0}_{1}r{2}".format(prefix, id, i)
+            subfilename = "{0}_{1}r{2}.txt".format(prefix, id, i)
+            e.write_to_file(image_filename=img_filename,
+                            image_format='.png',
+                            boxes_save_path=os.path.join(save_dir, subfilename))
+            print("[{2}]:{0} has been saved in {1}\n".format(img_filename, save_dir, id))
+            print("[{2}]:{0} has been saved in {1}\n".format(subfilename, save_dir, id))
