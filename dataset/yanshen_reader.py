@@ -1,4 +1,4 @@
-from skimage.io import imread
+from skimage.io import imread, imsave
 from dataset.label_map import label_map
 
 
@@ -9,10 +9,28 @@ class BBox(object):
         self.blurred = blurred
 
 
+def write_image_to_file(image, filename, img_format='.png'):
+    imsave("{0}.{1}".format(filename, img_format), image)
+
+
+def write_boxes_to_file(boxes, save_path):
+    format = '{0} {1} {2} {3} {4} {5} {6} {7} {8}\n'
+    with open(save_path, 'w') as f:
+        for box in boxes:
+            xmin, ymin, xmax, ymax = box.coord
+            category_str = label_map.label_map_str[box.category]
+            record = format.format(xmin, ymin, xmax, ymin, xmax, ymax, xmin, ymax, category_str)
+            f.write(record)
+
+
 class Example(object):
     def __init__(self):
         self.bboxes = []
         self.image = None
+
+    def write_to_file(self, image_filename, image_format, boxes_save_path):
+        write_image_to_file(self.image, image_filename, image_format)
+        write_boxes_to_file(self.bboxes, boxes_save_path)
 
 
 def parse_line(line):
