@@ -51,7 +51,7 @@ def _rotate_clockwise(angle, src_image_shape, boxes):
     nboxes = []
     h, w = (0, 0)
     if len(src_image_shape) == 2:
-        h, w, c = src_image_shape
+        h, w = src_image_shape
     if len(src_image_shape) == 3:
         h, w, c = src_image_shape
     angle_map = {90: lambda xmin, ymin, xmax, ymax: [h - ymax, xmin, h - ymin, w - xmin],
@@ -97,8 +97,8 @@ def shift(example, number):
         nexample = yanshen_reader.Example()
         flag = np.random.rand()
         if flag >= 0.5:
-            dleft = np.random.randint(1, padding[0], 1)
-            dtop = np.random.randint(1, padding[1], 1)
+            dleft = np.random.randint(1, padding[0], 1)[0]
+            dtop = np.random.randint(1, padding[1], 1)[0]
             nexample.image = cut_image((dleft, dtop, w, h), example.image, channel)
             for box in example.bboxes:
                 xmin, ymin, xmax, ymax = box.coord
@@ -106,8 +106,8 @@ def shift(example, number):
                 nexample.bboxes.append(nbox)
             yield nexample
         else:
-            dright = np.random.randint(1, padding[2], 1)
-            ddown = np.random.randint(1, padding[3], 1)
+            dright = np.random.randint(1, padding[2], 1)[0]
+            ddown = np.random.randint(1, padding[3], 1)[0]
             nexample.image = cut_image((0, 0, w - dright, h - ddown), example.image, channel)
             for box in example.bboxes:
                 xmin, ymin, xmax, ymax = box.coord
