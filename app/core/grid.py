@@ -3,7 +3,7 @@
 """
 import numpy as np
 from skimage import io as imageio
-from dataset.yanshen_reader import Example
+from dataset.yanshen_reader import Example, BBox
 
 
 def fake_process(image):
@@ -59,6 +59,17 @@ class Grid(object):
         return xmin, ymin, xmax, ymax
 
 
+def postprocess(bound, boxes):
+    bxmin, bymin, bxmax, bymax = bound
+    nboxes = []
+    for box in boxes:
+        xmin, ymin, xmax, ymax = box.coord
+        nbox = BBox((xmin - bxmin, ymin - bymin, xmax - bxmin, ymax - bymax),
+                    box.category, box.blurred)
+        nboxes.append(nbox)
+    return nboxes
+
+
 class Spliter(object):
     def __init__(self, split_shape, example):
         self._grid = None
@@ -88,7 +99,7 @@ class Spliter(object):
     def get_boxes_by_id(self, i, j):
         bound = self._grid.get_bound_by_id(i, j)
         boxes = search_box(bound, self._example.bboxes, min_iou=0.7)
-        return boxes
+        return postprocess(bound, boxes)
 
     def get_example_by_id(self, i, j):
         example = Example()
