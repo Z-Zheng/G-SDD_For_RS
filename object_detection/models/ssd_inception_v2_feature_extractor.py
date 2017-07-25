@@ -18,7 +18,7 @@ import tensorflow as tf
 
 from object_detection.meta_architectures import ssd_meta_arch
 from object_detection.models import feature_map_generators
-from nets import inception_v2
+from slim.nets import inception_v2
 
 slim = tf.contrib.slim
 
@@ -75,8 +75,8 @@ class SSDInceptionV2FeatureExtractor(ssd_meta_arch.SSDFeatureExtractor):
         ['image size must at least be 33 in both height and width.'])
 
     feature_map_layout = {
-        'from_layer': ['Mixed_4c', 'Mixed_5c', '', '', '', ''],
-        'layer_depth': [-1, -1, 512, 256, 256, 128],
+        'from_layer': ['Mixed_4c', 'Mixed_5c', '', '', '', '','Mixed_3C'],
+        'layer_depth': [-1, -1, 512, 256, 256, 128,-1],
     }
 
     with tf.control_dependencies([shape_assert]):

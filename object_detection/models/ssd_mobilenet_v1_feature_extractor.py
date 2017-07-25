@@ -19,7 +19,7 @@ import tensorflow as tf
 
 from object_detection.meta_architectures import ssd_meta_arch
 from object_detection.models import feature_map_generators
-from nets import mobilenet_v1
+from slim.nets import mobilenet_v1
 
 slim = tf.contrib.slim
 
