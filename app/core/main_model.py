@@ -98,13 +98,18 @@ class Main_Model(object):
         for feature_map in feature_maps:
             self._feature_maps_dict_op['%s:0' % feature_map.op.name] = feature_map
 
-    def grid_classify(self, image):
+    def grid_classify(self, image, need_classify=True):
         stage_1_feed_dict = {
             self._input_op: image
         }
-        probability, feature_map_dict = self.session.run([self._grid_classifier.output, self._feature_maps_dict_op],
-                                                         feed_dict=stage_1_feed_dict)
-        return probability, feature_map_dict
+        if need_classify:
+            probability, feature_map_dict = self.session.run([self._grid_classifier.output, self._feature_maps_dict_op],
+                                                             feed_dict=stage_1_feed_dict)
+            return probability, feature_map_dict
+        else:
+            feature_map_dict = self.session.run(self._feature_maps_dict_op,
+                                                feed_dict=stage_1_feed_dict)
+            return feature_map_dict
 
     def detect(self, feature_map_dict):
         stage_2_feed_dict = feature_map_dict
