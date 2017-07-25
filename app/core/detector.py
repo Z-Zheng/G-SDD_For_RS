@@ -31,10 +31,10 @@ class Detector(object):
                 'class_predictions_with_background': class_predictions_with_background,
                 'feature_maps': self._input
             }
-
+            label_id_offset = 1
             detections = self._main_model.internal_model.postprocess(predictions_dict)
             boxes = detections.get('detection_boxes')
             scores = detections.get('detection_scores')
-            classes = detections.get('detection_classes')
+            classes = detections.get('detection_classes') + label_id_offset
             num_detections = detections.get('num_detections')
             self._output = (boxes, scores, classes, num_detections)

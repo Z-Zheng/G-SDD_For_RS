@@ -9,77 +9,19 @@ from dataset.yanshen_reader import Example, BBox
 def fake_process(image):
     return image
 
-def overlap( x1,  w1,  x2,  w2):
-    l1 = x1 - w1/2
-    l2 = x2 - w2/2
-    if l1 > l2:
-        left = l1
-    else:
-        left = l2
-    r1 = x1 + w1/2
-    r2 = x2 + w2/2
-    if r1 < r2:
-        right = r1
-    else:
-        right = r2
-    return right - left
-
-def box_intersection(x1,y1,w1,h1,x2,y2,w2,h2 ):
-
-    w = overlap(x1, w1, x2, w2)
-    h = overlap(y1, h1, y2, h2)
-    if w < 0 or h < 0:
-        return 0
-    area = w*h
-    return area
-
-def overlap_cord( x1,  w1,  x2,  w2):
-    l1 = x1 - w1/2
-    l2 = x2 - w2/2
-    if l1 > l2:
-        left = l1
-    else:
-        left = l2
-    r1 = x1 + w1/2
-    r2 = x2 + w2/2
-    if r1 < r2:
-        right = r1
-    else:
-        right = r2
-    return int(right),int(left)
-
-def box_intersection_cord(x1,y1,w1,h1,x2,y2,w2,h2 ):
-    right, left = overlap_cord(x1, w1, x2, w2)
-    bottom, top = overlap_cord(y1, h1, y2, h2)
-    return left,top,right,bottom
 
 def is_inside(min_iou, bound, box):
     bxmin, bymin, bxmax, bymax = bound
-    bcx = (bxmax + bxmin ) / 2
-    bcy = (bymax + bymin) / 2
     xmin, ymin, xmax, ymax = box.coord
-    bbx = (xmax + xmin ) / 2
-    bby = (ymax + ymin) / 2
     if bxmin < xmin and bymin < ymin and xmax < bxmax and ymax < bymax:
         return True
     else:
-        inter = box_intersection(bcx, bcy, bxmax - bxmin, bymax - bymin, bbx, bby, xmax - xmin, ymax - ymin)
-        if xmax - xmin == 0 or ymax - ymin == 0:
-            print(xmax,',',xmin,',',ymax,',',ymin)
-        barea = ( xmax - xmin)* (ymax - ymin)
-        iou = inter / barea
-        #print(iou)
+        kxmin = max(bxmin, xmin)
+        kymin = max(bymin, ymin)
+        kxmax = min(bxmax, xmax)
+        kymax = min(bymax, ymax)
+        iou = (xmax - xmin) * (ymax - ymin) / ((kxmax - kxmin) * (kymax - kymin))
         if iou >= min_iou:
-            left, top, right, bottom = box_intersection_cord(bcx, bcy, bxmax - bxmin, bymax - bymin, bbx, bby, xmax - xmin, ymax - ymin)
-            if left == bxmin:
-                left = left + 1
-            elif top == bymin:
-                top = top + 1
-            elif right == bxmax:
-                right = right - 1
-            elif bottom == bymax:
-                bottom = bottom - 1
-            box.coord = [left, top, right, bottom]
             return True
         else:
             return False
@@ -117,7 +59,7 @@ class Grid(object):
         return xmin, ymin, xmax, ymax
 
 
-def postprocess(bound, boxes):
+def postprocess_abs2rel(bound, boxes):
     bxmin, bymin, bxmax, bymax = bound
     nboxes = []
     for box in boxes:
@@ -126,6 +68,7 @@ def postprocess(bound, boxes):
                     box.category, box.blurred)
         nboxes.append(nbox)
     return nboxes
+
 
 
 class Spliter(object):
@@ -148,11 +91,7 @@ class Spliter(object):
         self._grid = Grid((h, w), self._split_shape)
 
     def get_subimage_by_id(self, i, j):
-        x_min, y_min, x_max, y_max = self._grid.get_bound_by_id(i, j)
-        xmin = int(x_min)
-        ymin = int(y_min)
-        xmax = int(x_max)
-        ymax = int(y_max)
+        xmin, ymin, xmax, ymax = self._grid.get_bound_by_id(i, j)
         if self._channel == 1:
             return self._example.image[ymin:ymax, xmin:xmax]
         elif self._channel == 3:
@@ -161,10 +100,13 @@ class Spliter(object):
     def get_boxes_by_id(self, i, j):
         bound = self._grid.get_bound_by_id(i, j)
         boxes = search_box(bound, self._example.bboxes, min_iou=0.7)
-        return postprocess(bound, boxes)
+        return postprocess_abs2rel(bound, boxes)
 
     def get_example_by_id(self, i, j):
         example = Example()
         example.image = self.get_subimage_by_id(i, j)
         example.bboxes = self.get_boxes_by_id(i, j)
         return example
+
+    def get_bound_by_id(self, i, j):
+        return self._grid.get_bound_by_id(i, j)
