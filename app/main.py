@@ -67,16 +67,16 @@ def postprocess_rel2abs(bound, boxes, mh, mw):
     bxmin, bymin, bxmax, bymax = bound
     nboxes = np.copy(boxes)
     # shift
-    nboxes[:, 0] += bxmin
-    nboxes[:, 1] += bymin
-    nboxes[:, 2] += bxmax
-    nboxes[:, 3] += bymax
+    nboxes[:, 0] += bymin
+    nboxes[:, 1] += bxmin
+    nboxes[:, 2] += bymax
+    nboxes[:, 3] += bxmax
     # scale
-    nboxes[:, 0] *= mw
-    nboxes[:, 2] *= mw
+    nboxes[:, 0] *= mh
+    nboxes[:, 2] *= mh
 
-    nboxes[:, 1] *= mh
-    nboxes[:, 3] *= mh
+    nboxes[:, 1] *= mw
+    nboxes[:, 3] *= mw
 
     return nboxes
 
@@ -111,7 +111,7 @@ def main():
                              inception_ckpt=None)
     submit = Submit()
     submit.open_files()
-    for image, filename in read_all():
+    for image, filename in inputs:
         preprocessed_image, mh, mw, size_idx = preprocess(image)
         example = Example()
         example.image = preprocessed_image
